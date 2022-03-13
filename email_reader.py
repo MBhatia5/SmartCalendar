@@ -1,4 +1,3 @@
-
 # import the required libraries
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -9,6 +8,7 @@ import pickle
 import os.path
 import base64
 import email
+import time
 from httplib2 import Http
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
@@ -16,7 +16,8 @@ import dateutil.parser as parser
   
 # Define the SCOPES. If modifying it, delete the token.pickle file.
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/calendar.events','https://www.googleapis.com/auth/calendar']
-  
+
+created_events_set = set() 
 def getEmails():
     # Variable creds will store the user access token.
     # If no valid token found, we will create one.
@@ -56,64 +57,62 @@ def getEmails():
     # iterate through all the messages
     i = 0
     for msg in messages:
-        if i == 1:
+        if i == 5:
             break
+        i = i + 1
+        if msg['id'] in created_events_set:
+            continue
+        created_events_set.add(msg['id'])
+        # print(created_events_set)
+        # print(msg)
         # Get the message from its id
         txt = service.users().messages().get(userId='me', id=msg['id']).execute()
-        i = i + 1
         # Use try-except to avoid any Errors
         try:
             # Get value of 'payload' from dictionary 'txt'
             payload = txt['payload']
             headers = payload['headers']
             # Look for Subject and Sender Email in the headers
+            subject = ''
             for d in headers:
                 if d['name'] == 'Subject':
                     subject = d['value']
                 if d['name'] == 'From':
                     sender = d['value']
-  
+            #print(headers)
             # The Body of the message is in Encrypted format. So, we have to decode it.
             # Get the data and decode it with base 64 decoder.
             parts = payload.get('parts')[0]
             data = parts['body']['data']
             data = data.replace("-","+").replace("_","/")
             decoded_data = base64.b64decode(data)
-            decoded_data = str(decoded_data)
-            # dictionary = {'EECS-441.', 'PM'}
-            # print(type(decoded_data))
-            # for item in dictionary:
-            #     if item in decoded_data:
-            #         print('i am here')
-            if 'PM' in decoded_data:
-                #service1 = get_calendar_service()
+            decoded_data = str(decoded_data)[2:]
+            if 'AM' or 'PM' in decoded_data:
                 colon = decoded_data.index(':')
                 t = '0' + decoded_data[colon-1:colon+3] +':19'
-                print(t)
-                date_time_str = f'14/03/22 {t}'
+                date_time_str = '14/03/22 ' + t
                 date = parser.parse(date_time_str)
                 start = date.isoformat()
-                end = parser.isoparse(start)
+                start = parser.isoparse(start)
+                if 'PM' in decoded_data:
+                    start+=timedelta(hours = 12)
+                    #print(start)
+                end = start
                 end += timedelta(hours=1)
                 end = end.isoformat()
-                print(start)
-                print(end)
+                start = start.isoformat()
                 event_result = service1.events().insert(calendarId='primary',
                     body={
-                        "summary": decoded_data[colon+7:colon+19],
+                        "summary": decoded_data[:colon-2],
                         "description": 'New Event',
                         "start": {"dateTime": start, "timeZone": 'America/New_York'},
                         "end": {"dateTime": end, "timeZone": 'America/New_York'},
                     }
                 ).execute()
 
-                print("created event")
-                print("id: ", event_result['id'])
-                print("summary: ", event_result['summary'])
-                print("starts at: ", event_result['start']['dateTime'])
-                print("ends at: ", event_result['end']['dateTime'])
         except:
             pass
   
-  
-getEmails()
+while(True):
+    getEmails()
+    time.sleep(10)
