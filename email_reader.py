@@ -13,11 +13,56 @@ from httplib2 import Http
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import dateutil.parser as parser
-  
+from datetime import date
 # Define the SCOPES. If modifying it, delete the token.pickle file.
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/calendar.events','https://www.googleapis.com/auth/calendar']
 
 created_events_set = set() 
+
+nameList =[]
+for line in open('names.txt', 'r').read().splitlines():
+    nameList.append(line)
+print(nameList)
+
+
+def getDate(decoded_data):
+    today = date.today()
+    default = today.strftime("%d/%m/%y")+" "
+    if 'tomorrow' in decoded_data:
+        tomorrow=today+timedelta(days=1)
+        return tomorrow.strftime("%d/%m/%y")+" "
+    indexes = [x for x, v in enumerate(decoded_data) if v == '/']
+    for index in indexes:
+        if index>2 and index<(len(decoded_data)-2):
+            if decoded_data[index-3]==' ' and decoded_data[index-2].isdigit() and decoded_data[index-1].isdigit() and decoded_data[index+1].isdigit() and decoded_data[index+2].isdigit() and (index==len(decoded_data)-3 or decoded_data[index+3]==' ' or decoded_data[index+3]==','or decoded_data[index+3]=='.'):
+                return decoded_data[index+1:index+3]+"/"+decoded_data[index-2:index]+"/22 "
+    return default
+
+## return: valid_email, start_time, isPM, summary, location
+def validEmail(decoded_data):
+    valid=False
+    isPM=False
+    if (' AM ' or ' AM,' or ' AM.' in decoded_data) or ' AM'==decoded_data[-3:]:
+        valid=True
+    elif (' PM ' or ' PM,' or ' PM.' in decoded_data) or ' PM'==decoded_data[-3:]:
+        valid=True
+        isPM=True
+    if not valid:
+        return False,"",False,"", ""
+
+    colon = decoded_data.index(':')
+    t=""
+    if decoded_data[colon-2].isdigit():
+        t = decoded_data[colon-2:colon+3] +':19'
+    else:
+        t = '0' + decoded_data[colon-1:colon+3] +':19'
+    summary= decoded_data[:colon-2]
+    loc=""
+    if 'http' in decoded_data:
+        i=decoded_data.find('http')
+        loc=decoded_data[i:decoded_data.find(' ',i)]
+    return True,t,isPM,summary, loc
+
 def getEmails():
     # Variable creds will store the user access token.
     # If no valid token found, we will create one.
@@ -72,13 +117,17 @@ def getEmails():
             # Get value of 'payload' from dictionary 'txt'
             payload = txt['payload']
             headers = payload['headers']
-            # Look for Subject and Sender Email in the headers
-            subject = ''
-            for d in headers:
-                if d['name'] == 'Subject':
-                    subject = d['value']
-                if d['name'] == 'From':
-                    sender = d['value']
+            sender = [i['value'] for i in headers if i["name"]=="From"][0]
+            subject = [i['value'] for i in headers if i["name"]=="Subject"][0]
+            print(sender)
+            found=False
+            for address in nameList:
+                if address in sender:
+                    found=True
+                    break
+            if not found:
+                print('here')
+                continue
             #print(headers)
             # The Body of the message is in Encrypted format. So, we have to decode it.
             # Get the data and decode it with base 64 decoder.
@@ -87,24 +136,24 @@ def getEmails():
             data = data.replace("-","+").replace("_","/")
             decoded_data = base64.b64decode(data)
             decoded_data = str(decoded_data)[2:]
-            if 'AM' or 'PM' in decoded_data:
-                colon = decoded_data.index(':')
-                t = '0' + decoded_data[colon-1:colon+3] +':19'
-                date_time_str = '14/03/22 ' + t
+            valid_email, start_time, isPM,description,loc = valid_email(decoded_data)
+            if valid_email:
+                date_time_str = getDate(decoded_data) + start_time
                 date = parser.parse(date_time_str)
                 start = date.isoformat()
                 start = parser.isoparse(start)
-                if 'PM' in decoded_data:
+                if isPM:
                     start+=timedelta(hours = 12)
-                    #print(start)
                 end = start
                 end += timedelta(hours=1)
                 end = end.isoformat()
                 start = start.isoformat()
+                #first_index = decoded_data.index('Lets')
                 event_result = service1.events().insert(calendarId='primary',
                     body={
-                        "summary": decoded_data[:colon-2],
-                        "description": 'New Event',
+                        "summary": subject,
+                        "description": description,
+                        "location":loc,
                         "start": {"dateTime": start, "timeZone": 'America/New_York'},
                         "end": {"dateTime": end, "timeZone": 'America/New_York'},
                     }
@@ -115,4 +164,4 @@ def getEmails():
   
 while(True):
     getEmails()
-    time.sleep(10)
+    time.sleep(5)
