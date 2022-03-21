@@ -40,16 +40,21 @@ def getDate(decoded_data):
 
 ## return: valid_email, start_time, isPM, summary, location
 def validEmail(decoded_data):
+    print("BEGIN")
     valid=False
     isPM=False
-    if (' AM ' or ' AM,' or ' AM.' in decoded_data) or ' AM'==decoded_data[-3:]:
-        valid=True
-    elif (' PM ' or ' PM,' or ' PM.' in decoded_data) or ' PM'==decoded_data[-3:]:
-        valid=True
-        isPM=True
+    print(decoded_data)
+    for index in range(len(decoded_data)-1):
+        if decoded_data[index]=='P' and decoded_data[index+1]=='M':
+            valid=True
+            isPM=True
+            print("PM")
+        if decoded_data[index]=='A' and decoded_data[index+1]=='M':
+            valid=True
+            isPM=False
     if not valid:
         return False,"",False,"", ""
-
+    print("VALID EMAIL")
     colon = decoded_data.index(':')
     t=""
     if decoded_data[colon-2].isdigit():
@@ -61,7 +66,11 @@ def validEmail(decoded_data):
     if 'http' in decoded_data:
         i=decoded_data.find('http')
         loc=decoded_data[i:decoded_data.find(' ',i)]
-    return True,t,isPM,summary, loc
+    print(t)
+    print(isPM)
+    print(summary)
+    print(loc)
+    return True,t,isPM,summary, loc[:loc.find('\\')]
 
 def getEmails():
     # Variable creds will store the user access token.
@@ -136,8 +145,10 @@ def getEmails():
             data = data.replace("-","+").replace("_","/")
             decoded_data = base64.b64decode(data)
             decoded_data = str(decoded_data)[2:]
-            valid_email, start_time, isPM,description,loc = valid_email(decoded_data)
+            print("BEFORE")
+            valid_email, start_time, isPM,description,loc = validEmail(decoded_data)
             if valid_email:
+                print('in valid email')
                 date_time_str = getDate(decoded_data) + start_time
                 date = parser.parse(date_time_str)
                 start = date.isoformat()
