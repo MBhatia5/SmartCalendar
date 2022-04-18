@@ -1,0 +1,23 @@
+{
+    "manifest_version": 2,
+    "name": "OurCal",
+    "description": "Make Gmail an auto populating calendar for select groups of emails",
+    "version": "1.0",
+    "icons": {
+        "16": "/images/images.png",
+        "48": "/images/images.png",
+        "128": "/images/images.png"
+    },
+    "browser_action": {
+        "default_icon": {
+                "16": "/images/images.png",
+                "48": "/images/images.png",
+                "128": "/images/images.png"
+        },
+        "default_popup": "popup.html"
+    },
+    "permissions": [
+        "storage"
+    ]
+    
+}
